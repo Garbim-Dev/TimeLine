@@ -140,4 +140,84 @@ export class ScheduleService {
       orderBy: { startDate: 'asc' },
     });
   }
+
+  /**
+   * Consulta pelo código da turma (ex: APB.040.352) para a visão do aluno
+   */
+  static async listByClassCode(classCode: string) {
+    const classGroup = await prisma.classGroup.findUnique({
+      where: { classCode },
+      include: {
+        course: true,
+        companies: { include: { company: true } },
+      },
+    });
+
+    if (!classGroup) return null;
+
+    const schedules = await prisma.schedule.findMany({
+      where: { 
+        classGroupId: classGroup.id, 
+        deletedAt: null 
+      },
+      include: {
+        discipline: true,
+        instructor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            areaExpertise: true,
+          }
+        },
+        environment: true,
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    return {
+      classGroup,
+      schedules,
+    };
+  }
+
+  /**
+   * Consulta por ID da turma já vinculada ao perfil do aluno
+   */
+  static async listByClassGroupId(classGroupId: number) {
+    const classGroup = await prisma.classGroup.findUnique({
+      where: { id: classGroupId },
+      include: {
+        course: true,
+        companies: { include: { company: true } },
+      },
+    });
+
+    if (!classGroup) return null;
+
+    const schedules = await prisma.schedule.findMany({
+      where: { 
+        classGroupId, 
+        deletedAt: null 
+      },
+      include: {
+        discipline: true,
+        instructor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            areaExpertise: true,
+          }
+        },
+        environment: true,
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    return {
+      classGroup,
+      schedules,
+    };
+  }
 }
