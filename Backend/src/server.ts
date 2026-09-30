@@ -6,7 +6,11 @@ import { managementRouter } from './modules/management/management.routes';
 import { authRouter } from './modules/auth/auth.routes';
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: '*', // Permite que a Vercel acesse a API sem bloqueio
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use('/api/auth', authRouter);
 
