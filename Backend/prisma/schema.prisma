@@ -1,0 +1,235 @@
+// =============================================================================
+// BANCO DE DADOS: db_timeline
+// SISTEMA: Timeline - Cronograma de Aulas SENAI CEP Parauapebas
+// CAMINHO: d:/Programar/Timeline/Backend/prisma/schema.prisma
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum ShiftType {
+  MANHA    @map("Manhã")
+  TARDE    @map("Tarde")
+  NOITE    @map("Noite")
+  INTEGRAL @map("Integral")
+
+  @@map("shift_type")
+}
+
+enum ScheduleStatus {
+  PLANEJADA    @map("Planejada")
+  EM_ANDAMENTO @map("Em andamento")
+  CONCLUIDA    @map("Concluída")
+  CANCELADA    @map("Cancelada")
+
+  @@map("schedule_status")
+}
+
+enum ActionType {
+  INSERT
+  UPDATE
+  DELETE
+
+  @@map("action_type")
+}
+
+// =============================================================================
+// MODELOS / TABELAS
+// =============================================================================
+
+/// Usuários do sistema (Responsáveis pelo cadastro, edição e coordenação)
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(150)
+  email        String   @unique @db.VarChar(150)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         String   @default("coordenador") @db.VarChar(50)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relacionamentos com agendamentos e auditoria
+  createdSchedules Schedule[]         @relation("ScheduleCreatedBy")
+  updatedSchedules Schedule[]         @relation("ScheduleUpdatedBy")
+  auditLogs        ScheduleAuditLog[]
+
+  @@map("users")
+}
+
+/// Instrutores de ensino
+model Instructor {
+  id               Int      @id @default(autoincrement())
+  name             String   @db.VarChar(150)
+  registrationCode String?  @unique @map("registration_code") @db.VarChar(50)
+  email            String?  @unique @db.VarChar(150)
+  phone            String?  @db.VarChar(30)
+  areaExpertise    String?  @map("area_expertise") @db.VarChar(150)
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relacionamentos
+  schedules Schedule[]
+
+  @@map("instructors")
+}
+
+/// Empresas Parceiras (ex: Vale - Carajás, Alcoa, Usiminas)
+model Company {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique @db.VarChar(150)
+  cnpj          String?  @db.VarChar(20)
+  contactPerson String?  @map("contact_person") @db.VarChar(100)
+  contactPhone  String?  @map("contact_phone") @db.VarChar(30)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relacionamento N:N com Turmas através da tabela associativa
+  classCompanies ClassGroupCompany[]
+
+  @@map("companies")
+}
+
+/// Ambientes de Aula / Laboratórios / Oficinas (ex: FAMAP, Sala 04)
+model Environment {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique @db.VarChar(100)
+  capacity        Int?     @default(30)
+  locationDetails String?  @map("location_details") @db.VarChar(255)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relacionamentos
+  schedules Schedule[]
+
+  @@map("environments")
+}
+
+/// Cursos (ex: Operador de Mina)
+model Course {
+  id            Int      @id @default(autoincrement())
+  courseCode    String?  @unique @map("course_code") @db.VarChar(50)
+  title         String   @db.VarChar(150)
+  workloadHours Int?     @default(0) @map("workload_hours")
+  description   String?  @db.Text
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relacionamentos
+  disciplines Discipline[]
+  classGroups ClassGroup[]
+
+  @@map("courses")
+}
+
+/// Disciplinas / Unidades Curriculares (ex: Topografia Aplicada à Mineração)
+model Discipline {
+  id            Int      @id @default(autoincrement())
+  courseId      Int      @map("course_id")
+  code          String?  @db.VarChar(50)
+  name          String   @db.VarChar(150)
+  workloadHours Int?     @default(40) @map("workload_hours")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relação com Curso
+  course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  @@map("disciplines")
+}
+
+/// Turmas (ex: APB/149/02) - Suporta Turmas Regulares, Exclusivas e Mistas
+model ClassGroup {
+  id        Int      @id @default(autoincrement())
+  classCode String   @unique @map("class_code") @db.VarChar(50)
+  courseId  Int      @map("course_id")
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relações
+  course    Course                @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  companies ClassGroupCompany[]
+  schedules Schedule[]
+
+  @@map("class_groups")
+}
+
+/// Tabela Associativa: Vínculo N:N entre Turmas e Empresas Parceiras
+model ClassGroupCompany {
+  classGroupId Int @map("class_group_id")
+  companyId    Int @map("company_id")
+
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([classGroupId, companyId])
+  @@map("class_group_companies")
+}
+
+/// Cronograma de Aulas (Agendamento específico da disciplina)
+model Schedule {
+  id              Int            @id @default(autoincrement())
+  classGroupId    Int            @map("class_group_id")
+  disciplineId    Int            @map("discipline_id")
+  instructorId    Int            @map("instructor_id")
+  environmentId   Int            @map("environment_id")
+  shift           ShiftType      @default(TARDE)
+  startDate       DateTime       @map("start_date") @db.Date
+  endDate         DateTime       @map("end_date") @db.Date
+  sharepointUrl   String?        @map("sharepoint_url") @db.Text
+  status          ScheduleStatus @default(PLANEJADA)
+  createdByUserId Int            @map("created_by_user_id")
+  updatedByUserId Int?           @map("updated_by_user_id")
+  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz()
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relações
+  classGroup    ClassGroup         @relation(fields: [classGroupId], references: [id], onDelete: Restrict)
+  discipline    Discipline         @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  instructor    Instructor         @relation(fields: [instructorId], references: [id], onDelete: Restrict)
+  environment   Environment        @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  createdByUser User               @relation("ScheduleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedByUser User?              @relation("ScheduleUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  auditLogs     ScheduleAuditLog[]
+
+  // Índices para performance
+  @@index([instructorId], map: "idx_schedules_instructor")
+  @@index([environmentId], map: "idx_schedules_environment")
+  @@index([classGroupId], map: "idx_schedules_class")
+  @@index([startDate, endDate], map: "idx_schedules_dates")
+  @@index([status], map: "idx_schedules_status")
+  @@map("schedules")
+}
+
+/// Histórico e Logs de Auditoria
+model ScheduleAuditLog {
+  id              BigInt     @id @default(autoincrement())
+  scheduleId      Int        @map("schedule_id")
+  action          ActionType
+  changedByUserId Int?       @map("changed_by_user_id")
+  actionTimestamp DateTime   @default(now()) @map("action_timestamp") @db.Timestamptz()
+  oldValues       Json?      @map("old_values")
+  newValues       Json?      @map("new_values")
+
+  // Relações
+  schedule      Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  changedByUser User?    @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("schedule_audit_logs")
+}
