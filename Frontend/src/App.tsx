@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthPage } from './pages/Auth/AuthPage';
-import { TimelineCard } from './components/cards/TimelineCard';
 import { CoordinatorPanel, TabMode } from './pages/Coordinator/CoordinatorPanel';
 import { StudentPortal } from './pages/Student/StudentPortal';
+import { api } from './services/api';
 import { 
   LogOut, 
   UserCheck, 
@@ -17,33 +17,59 @@ import {
   BookOpen,
   BookMarked,
   MapPin,
-  Clock
+  Clock,
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 
 interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: 'coordenador' | 'instrutor' | 'aluno';
-  instructorId?: number;
+  role: 'coordenador' | 'professor' | 'aluno';
+  instructorId?: number | null;
+  classGroupId?: number | null;
 }
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // Estado da aba ativa para a Coordenação (controlado na Sidebar)
   const [coordinatorTab, setCoordinatorTab] = useState<TabMode>('dashboard');
+
+  // Estados para a agenda do professor
+  const [teacherSchedules, setTeacherSchedules] = useState<any[]>([]);
+  const [loadingTeacherSchedules, setLoadingTeacherSchedules] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.role === 'professor' && currentUser.instructorId) {
+      setLoadingTeacherSchedules(true);
+      api.get(`/schedules/instructor/${currentUser.instructorId}`)
+        .then((res) => {
+          setTeacherSchedules(res.data);
+        })
+        .catch((err) => {
+          console.error("Erro ao obter agenda do docente:", err);
+        })
+        .finally(() => {
+          setLoadingTeacherSchedules(false);
+        });
+    }
+  }, [currentUser]);
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setTeacherSchedules([]);
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
   if (!currentUser) {
     return <AuthPage onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
 
-  // Itens do Menu Lateral para o Coordenador
   const menuItems = [
     { id: 'dashboard' as TabMode, label: '1. Painel da Coordenação', icon: LayoutDashboard },
     { id: 'schedule' as TabMode, label: '2. Cronograma', icon: CalendarPlus },
@@ -57,14 +83,14 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row">
-      {/* 1. SIDEBAR LATERAL ESQUERDA */}
+      {/* 1. SIDEBAR LATERAL */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col justify-between transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col">
-          {/* Topo com Logo e Ícone da Instituição */}
+          {/* Topo com Logo e Título */}
           <div className="p-5 flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center gap-3">
               <img 
@@ -72,7 +98,6 @@ export function App() {
                 alt="SENAI Logo" 
                 className="h-10 w-auto object-contain"
                 onError={(e) => {
-                  // Fallback visual caso a imagem não esteja no diretório correto
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
@@ -98,7 +123,7 @@ export function App() {
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold shrink-0">
                 {currentUser.role === 'coordenador' && <ShieldCheck className="w-5 h-5" />}
-                {currentUser.role === 'instrutor' && <UserCheck className="w-5 h-5" />}
+                {currentUser.role === 'professor' && <UserCheck className="w-5 h-5" />}
                 {currentUser.role === 'aluno' && <GraduationCap className="w-5 h-5" />}
               </div>
               <div className="overflow-hidden">
@@ -140,14 +165,14 @@ export function App() {
                 })}
               </>
             ) : (
-              <div className="p-2 text-xs text-slate-400">
-                Acesso direcionado à sua área de atuação.
+              <div className="p-3 text-xs text-slate-400">
+                Acesso direcionado ao seu portal institucional.
               </div>
             )}
           </nav>
         </div>
 
-        {/* Rodapé da Sidebar: Botão Sair */}
+        {/* Rodapé: Botão Sair */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/20">
           <button
             onClick={handleLogout}
@@ -166,7 +191,7 @@ export function App() {
         />
       )}
 
-      {/* 2. ÁREA PRINCIPAL (TELA CHEIA RESPONSIVA) */}
+      {/* 2. ÁREA PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
         
         {/* Barra Superior */}
@@ -199,15 +224,17 @@ export function App() {
           </div>
         </header>
 
-        {/* Conteúdo Fluido */}
+        {/* Conteúdo Dinâmico por Perfil */}
         <main className="flex-1 p-4 sm:p-8 overflow-y-auto w-full">
           {currentUser.role === 'coordenador' && (
             <CoordinatorPanel activeTab={coordinatorTab} setActiveTab={setCoordinatorTab} />
           )}
 
-          {currentUser.role === 'aluno' && <StudentPortal />}
+          {currentUser.role === 'aluno' && (
+            <StudentPortal currentUser={currentUser} />
+          )}
 
-          {currentUser.role === 'instrutor' && (
+          {currentUser.role === 'professor' && (
             <div className="flex flex-col gap-6 max-w-7xl mx-auto">
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-blue-900 font-bold text-sm bg-blue-50 px-3 py-2 rounded-xl border border-blue-100">
@@ -220,22 +247,55 @@ export function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <TimelineCard
-                  id={1}
-                  classCode="APB/149/02"
-                  courseName="Operador de Mina"
-                  disciplineName="Topografia Aplicada à Mineração"
-                  companyName="Vale - Carajás"
-                  startDate="04/09/2026"
-                  endDate="17/09/2026"
-                  sharepointUrl="https://senaipa.sharepoint.com/sites/apb14902"
-                  environmentName="FAMAP"
-                  shift="Tarde"
-                  status="Em andamento"
-                  createdAtFormatted="15/09/2026 8:39"
-                />
-              </div>
+              {loadingTeacherSchedules ? (
+                <div className="text-center py-12 text-slate-500 text-xs">Carregando cronograma docente...</div>
+              ) : teacherSchedules.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                  <AlertCircle className="w-8 h-8 text-slate-400" />
+                  <p className="text-sm font-semibold">Nenhuma aula agendada para o seu perfil no momento.</p>
+                  <p className="text-xs text-slate-400">Assim que a coordenação planejar suas turmas, elas aparecerão aqui.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {teacherSchedules.map((item) => (
+                    <div 
+                      key={item.id} 
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                            Turma: {item.classGroup?.classCode}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                            {item.shift}
+                          </span>
+                        </div>
+
+                        <h3 className="text-sm font-bold text-slate-800 mb-1 flex items-start gap-1.5">
+                          <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                          <span>{item.discipline?.name}</span>
+                        </h3>
+
+                        <p className="text-xs text-slate-500 mb-4 line-clamp-1">
+                          {item.classGroup?.course?.title}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3 flex flex-col gap-2 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Ambiente: <strong>{item.environment?.name}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>Período: {formatDate(item.startDate)} até {formatDate(item.endDate)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </main>

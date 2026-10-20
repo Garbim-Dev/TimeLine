@@ -3,11 +3,11 @@ import {
   LogIn, 
   UserPlus, 
   KeyRound, 
-  BookOpen, 
   ArrowLeft, 
   CheckCircle2, 
   AlertCircle,
   GraduationCap,
+  Briefcase,
   ShieldCheck
 } from 'lucide-react';
 import { api } from '../../services/api';
@@ -25,9 +25,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'aluno' | 'coordenador'>('aluno');
+  const [role, setRole] = useState<'aluno' | 'professor' | 'coordenador'>('aluno');
   const [accessKey, setAccessKey] = useState('');
   const [classCode, setClassCode] = useState('');
+  const [registrationCode, setRegistrationCode] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +46,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
           password, 
           role,
           accessKey: role === 'coordenador' ? accessKey : undefined,
-          classCode: role === 'aluno' ? classCode : undefined 
+          classCode: role === 'aluno' ? classCode.trim() : undefined,
+          registrationCode: role === 'professor' ? registrationCode.trim() : undefined
         });
         setAlert({ 
           type: 'success', 
@@ -73,28 +75,27 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
     <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
         
-        {/* Topo Institucional Fundido com a Logo */}
+        {/* Topo Institucional */}
         <div className="relative bg-[#031329] p-8 text-white text-center flex flex-col items-center overflow-hidden border-b border-blue-900/40">
-        {/* Luzes de fundo atmosféricas (Glow 3D combinando com a logo) */}
-        <div className="absolute -top-10 -left-10 w-40 h-40 bg-blue-600/25 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-10 -left-10 w-40 h-40 bg-blue-600/25 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Imagem da Logo com bordas fundidas */}
-        <div className="relative z-10 flex justify-center mb-3">
+          <div className="relative z-10 flex justify-center mb-3">
             <img 
-            src="/logo.png" 
-            alt="Timeline SENAI" 
-            className="h-28 sm:h-32 w-auto object-contain [mask-image:radial-gradient(ellipse_at_center,black_70%,transparent_100%)] drop-shadow-[0_10px_20px_rgba(0,0,0,0.6)]"
-            onError={(e) => {
+              src="/logo.png" 
+              alt="Timeline SENAI" 
+              className="h-28 sm:h-32 w-auto object-contain [mask-image:radial-gradient(ellipse_at_center,black_70%,transparent_100%)] drop-shadow-[0_10px_20px_rgba(0,0,0,0.6)]"
+              onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
-            }}
+              }}
             />
+          </div>
+
+          <p className="relative z-10 text-xs text-blue-200/80 font-semibold tracking-wider uppercase">
+            Centro de Educação Profissional • CEP Parauapebas
+          </p>
         </div>
 
-        <p className="relative z-10 text-xs text-blue-200/80 font-semibold tracking-wider uppercase">
-            Centro de Educação Profissional • CEP Parauapebas
-        </p>
-        </div>
         <div className="p-6 sm:p-8">
           {alert && (
             <div className={`p-3.5 rounded-xl mb-5 text-xs font-semibold flex items-center gap-2 ${
@@ -139,7 +140,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
             </div>
           )}
 
-          {/* Cabeçalho de Esqueci a Senha */}
+          {/* Cabeçalho Esqueci Minha Senha */}
           {mode === 'forgot' && (
             <div className="mb-6 flex items-center gap-2">
               <button
@@ -158,34 +159,46 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
             {/* Campos de Registro */}
             {mode === 'register' && (
               <>
-                {/* Seletor do Tipo de Conta */}
+                {/* Seletor Tríplice de Perfis */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Selecione o Tipo de Cadastro
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setRole('aluno')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      className={`p-2.5 rounded-xl border text-[11px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all ${
                         role === 'aluno'
                           ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
                           : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <GraduationCap className="w-4 h-4" /> Sou Aluno
+                      <GraduationCap className="w-4 h-4" /> Aluno
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRole('professor')}
+                      className={`p-2.5 rounded-xl border text-[11px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all ${
+                        role === 'professor'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Briefcase className="w-4 h-4" /> Professor
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setRole('coordenador')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      className={`p-2.5 rounded-xl border text-[11px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all ${
                         role === 'coordenador'
                           ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
                           : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <ShieldCheck className="w-4 h-4" /> Coordenador
+                      <ShieldCheck className="w-4 h-4" /> Gestão
                     </button>
                   </div>
                 </div>
@@ -205,13 +218,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 {role === 'aluno' && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Código da Turma (Opcional)
+                      Código da Turma
                     </label>
                     <input
                       type="text"
                       value={classCode}
                       onChange={(e) => setClassCode(e.target.value)}
-                      placeholder="Ex: APB/149/02"
+                      placeholder="Ex: APB.040.356"
+                      className="w-full text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                )}
+
+                {role === 'professor' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Matrícula / Código de Instrutor (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={registrationCode}
+                      onChange={(e) => setRegistrationCode(e.target.value)}
+                      placeholder="Ex: 1938"
                       className="w-full text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
@@ -227,11 +255,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                       required
                       value={accessKey}
                       onChange={(e) => setAccessKey(e.target.value)}
-                      placeholder="Informe a chave da gerência CEP"
+                      placeholder="Chave da coordenação CEP"
                       className="w-full text-xs p-2.5 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-800"
                     />
                     <span className="text-[10px] text-amber-700 mt-1 block">
-                      Padrão de desenvolvimento: <strong>SENAI-CEP-2026</strong>
+                      Padrão de acesso: <strong>SENAI-CEP-2026</strong>
                     </span>
                   </div>
                 )}
@@ -288,7 +316,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 </>
               ) : mode === 'register' ? (
                 <>
-                  <UserPlus className="w-4 h-4" /> Finalizar Cadastro de {role === 'coordenador' ? 'Coordenador' : 'Aluno'}
+                  <UserPlus className="w-4 h-4" /> Finalizar Cadastro
                 </>
               ) : (
                 <>
@@ -299,7 +327,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
           </form>
 
           <p className="text-[11px] text-center text-slate-400 mt-6">
-            Instrutores são cadastrados e vinculados diretamente pela Coordenação de Cursos.
+            Ambiente Integrado de Gestão Curricular • SENAI CEP Parauapebas
           </p>
         </div>
       </div>
