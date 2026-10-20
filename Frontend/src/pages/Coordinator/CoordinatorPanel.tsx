@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Building2, 
   Users, 
   GraduationCap, 
   CalendarPlus, 
   CheckCircle2, 
-  AlertTriangle,
-  BookOpen,
-  BookMarked,
-  MapPin,
-  Pencil,
-  Trash2,
-  X,
-  LayoutDashboard
+  AlertTriangle, 
+  BookOpen, 
+  BookMarked, 
+  MapPin, 
+  Pencil, 
+  Trash2, 
+  X, 
+  LayoutDashboard,
+  UploadCloud,
+  FileSpreadsheet,
+  Loader2
 } from 'lucide-react';
 import { DistributionDashboard } from './DistributionDashboard';
 import { OperationalDetailsCard } from './OperationalDetailsCard';
@@ -45,6 +48,13 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
 
   // Estado de Edição
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Estados do Modal de Importação Excel
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [importSummary, setImportSummary] = useState<{ totalImported: number; warnings: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Formulários
   const [scheduleForm, setScheduleForm] = useState({
@@ -126,6 +136,44 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
         msg: extractErrorMessage(err, `Falha ao excluir ${entityLabel}.`), 
         type: 'error' 
       });
+    }
+  };
+
+  // Upload Excel
+  const handleExcelUpload = async () => {
+    if (!selectedFile) return;
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('userId', '1');
+
+    setIsUploading(true);
+    setImportSummary(null);
+
+    try {
+      const response = await api.post('/schedules/import-excel', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setImportSummary({
+        totalImported: response.data.totalImported,
+        warnings: response.data.warnings || [],
+      });
+
+      setFeedback({
+        msg: `Importação concluída! ${response.data.totalImported} agendamento(s) processado(s).`,
+        type: 'success',
+      });
+
+      // Recarrega todos os dados atualizados com o conteúdo da planilha
+      await loadData();
+    } catch (err: any) {
+      setFeedback({
+        msg: extractErrorMessage(err, 'Falha ao processar e importar o arquivo Excel.'),
+        type: 'error',
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -213,7 +261,7 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
     }
   };
 
-  // Submit Turmas (Suporte a Múltiplas Empresas)
+  // Submit Turmas
   const handleClassSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
@@ -301,7 +349,7 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
       {/* Título dinâmico baseado na aba selecionada pelo menu lateral */}
-      <div className="border-b border-slate-100 pb-5 mb-6 flex items-center justify-between">
+      <div className="border-b border-slate-100 pb-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight">
             {activeTab === 'dashboard' && '1. Painel da Coordenação (Distribuição)'}
@@ -317,6 +365,22 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
             SENAI CEP Parauapebas • Módulo Operacional
           </p>
         </div>
+
+        {/* Botão de Importação por Excel na Aba de Cronograma */}
+        {activeTab === 'schedule' && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsImportModalOpen(true);
+              setSelectedFile(null);
+              setImportSummary(null);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer self-start sm:self-auto"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Importar Planilha Excel</span>
+          </button>
+        )}
       </div>
 
       {feedback && (
@@ -340,6 +404,111 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* MODAL DE IMPORTAÇÃO DE PLANILHA EXCEL */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 sm:p-7 overflow-hidden flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">Importação em Lote de Cronograma</h3>
+                  <p className="text-[11px] text-slate-500">Planilhas formato .xlsx ou .xls (ex: Garbim.xlsx)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Área de Seleção de Arquivo */}
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-slate-200 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/30 rounded-2xl p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setSelectedFile(e.target.files[0]);
+                    setImportSummary(null);
+                  }
+                }}
+              />
+              <UploadCloud className="w-8 h-8 text-emerald-600" />
+              <div>
+                <p className="text-xs font-bold text-slate-700">
+                  {selectedFile ? selectedFile.name : 'Clique para selecionar a planilha Excel'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {selectedFile 
+                    ? `${(selectedFile.size / 1024).toFixed(1)} KB selecionado` 
+                    : 'Processa abas de Manhã e Tarde com detecção automática de turmas'}
+                </p>
+              </div>
+            </div>
+
+            {/* Sumário de Importação */}
+            {importSummary && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs">
+                <div className="flex items-center gap-2 font-bold text-emerald-800 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>{importSummary.totalImported} registro(s) inseridos com sucesso!</span>
+                </div>
+                {importSummary.warnings.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-emerald-200/80 text-[11px] text-amber-800">
+                    <p className="font-semibold mb-1">Avisos ({importSummary.warnings.length}):</p>
+                    <ul className="list-disc pl-4 space-y-0.5 max-h-24 overflow-y-auto">
+                      {importSummary.warnings.slice(0, 5).map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Ações do Modal */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                disabled={!selectedFile || isUploading}
+                onClick={handleExcelUpload}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processando Planilha...
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="w-4 h-4" />
+                    Iniciar Importação
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1015,7 +1184,7 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
         </div>
       )}
 
-      {/* 8. TURMAS (COM SUPORTE A TURMAS MISTAS) */}
+      {/* 8. TURMAS */}
       {activeTab === 'classes' && (
         <div className="flex flex-col gap-6">
           <form onSubmit={handleClassSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-200">
@@ -1057,7 +1226,7 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
               </select>
             </div>
 
-            {/* SELETOR INTERATIVO DE MÚLTIPLAS EMPRESAS (TURMA MISTA) */}
+            {/* SELETOR INTERATIVO DE MÚLTIPLAS EMPRESAS */}
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                 <span>Empresas Parceiras (Selecione uma ou mais empresas para Turmas Mistas / Aprendizes)</span>
@@ -1141,7 +1310,7 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
             </div>
           </form>
 
-          {/* Listagem de Turmas com Identificação Visual de Turma Mista */}
+          {/* Listagem de Turmas */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 text-slate-700 uppercase font-bold">
@@ -1155,7 +1324,6 @@ export const CoordinatorPanel: React.FC<CoordinatorPanelProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {classes.map((c) => {
-                  // Mapeia empresas associadas
                   const partnerList = c.partnerCompanies || (c.companies?.map((cc: any) => cc.company || cc) || []);
                   const isMixed = partnerList.length > 1;
 
