@@ -1,8 +1,11 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { ScheduleService } from './schedule.service';
+import { ScheduleImportService } from './schedule-import.service';
 import { createScheduleSchema } from '../../common/validators/schedule.schema';
 
 export const scheduleRouter = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // 1. Listar todos os cronogramas (Coordenação)
 scheduleRouter.get('/', async (_req: Request, res: Response) => {
@@ -29,7 +32,7 @@ scheduleRouter.get('/instructor/:id', async (req: Request, res: Response) => {
   }
 });
 
-// 3. Portal do Aluno: Consulta por Código da Turma (ex: APB.040.352)
+// 3. Portal do Aluno: Consulta por Código da Turma (ex: APB.040.356)
 scheduleRouter.get('/student/class/:classCode', async (req: Request, res: Response) => {
   try {
     const { classCode } = req.params;
@@ -74,5 +77,22 @@ scheduleRouter.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
     }
     return res.status(400).json({ message: error.message });
+  }
+});
+
+// 6. Importação em Lote via Planilha Excel (Garbim.xlsx)
+scheduleRouter.post('/import-excel', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
+    }
+
+    const body = req.body as { userId?: string | number } | undefined;
+    const userId = body?.userId ? Number(body.userId) : 1;
+
+    const result = await ScheduleImportService.importFromExcelBuffer(req.file.buffer, userId);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Falha ao processar planilha Excel.' });
   }
 });
